@@ -1,0 +1,24 @@
+{
+  "name": "igscraper",
+  "version": "1.0.0",
+  "description": "Express web app to scrape Instagram content",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eddswitchengage/igscraper.git"
+  },
+  "author": "Eddie Caldwell",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/eddswitchengage/igscraper/issues"
+  },
+  "homepage": "https://github.com/eddswitchengage/igscraper#readme",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "puppeteer": "^1.17.0"
+  }
+}
