@@ -55,6 +55,7 @@ this.scrape_user = async function(browser, response, settings){
 }
 
 this.scrape_posts = async function(browser, response, settings){
+    
 }
 
 /* Helpers */
@@ -65,10 +66,17 @@ async function init_browser(){
       });
 }
 
+function is_valid_continuation(token){
+    if(token && token !== ""){
+        if(token.substring(0, identifiers.postUrl.length) == identifiers.postUrl) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function parse_number(text){
     if(!text || text === "") return 0;
-
-    console.log(text);
 
     if(text.includes('k')){
         text = text.replace('k', '');
@@ -80,9 +88,6 @@ function parse_number(text){
         while(text.includes(',')) text = text.replace(',', '');
         text = text.replace(' likes', '');
         text = text.replace(' like', '');
-        
-        console.log("PARSED: " + text);
-
         return parseFloat(text);   
     }    
 }
