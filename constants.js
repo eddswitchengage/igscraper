@@ -6,7 +6,7 @@ exports.identifiers = {
         fullname: 'h1.rhpdm',
         bio: 'div.-vDIg span',
         postThumb: 'div.v1Nh3 a',
-        stats: 'a.-nal3 ',
+        stats: 'span.g47SY',
         displayPicture: 'img._6q-tv'
     },
     post: {
