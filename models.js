@@ -35,6 +35,7 @@ exports.media = {
     created_time: Date.now,
     filter: "",
     likes: 0,
+    views: 0,
     images: {
         low_resoution: this.src,
         standard_resolution: this.src,
