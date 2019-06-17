@@ -16,7 +16,7 @@ app.post('/user', function(req, res) {
     const settings = Object.assign(models.scrape_settings, req.body);
     settings.scrape_type = constants.types.user;
 
-    service.scrape(settings).then(data => res.send(data));
+    await service.scrape(settings).then(data => res.send(data));
 });
 
 app.post('/posts', function(req,res){
@@ -25,18 +25,19 @@ app.post('/posts', function(req,res){
     const settings = Object.assign(models.scrape_settings, req.body);
     settings.scrape_type = constants.types.posts;
 
-    service.scrape(settings).then(data => res.send(data));
+    await service.scrape(settings).then(data => res.send(data));
 });
 
 app.post('/posts/random', function(req, res){
     if(!req.body.username) res.send('No username was provided');
 
-    console.log("Providede body:  " + req.body);
+    console.log("Settings: " + JSON.stringify(req.body));
 
-    const settings = Object.assign(models.scrape_settings, req.body);
+    const settings = Object.assign(models.scrape_settings, req.body);    
+
     settings.scrape_type = constants.types.posts_random;
 
-    service.scrape(settings).then(data => res.send(data));
+    await service.scrape(settings).then(data => res.send(data));
 });
 
 
