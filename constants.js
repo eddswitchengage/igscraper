@@ -33,3 +33,10 @@ exports.identifiers = {
         loadMore: 'span.glyphsSpriteCircle_add__outline__24__grey_9 u-__7'
     }
 }
+
+exports.types = {
+    user: 'USER',
+    posts: 'POSTS',
+    posts_random: 'POSTS_RANDOM',
+    posts_single: 'POSTS_SINGLE',
+}

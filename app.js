@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const service = require('./service');
 const models = require('./models');
+const constants = require('./constants');
 
 const app = express();
 app.use(bodyParser.json());
@@ -13,7 +14,7 @@ app.post('/user', function(req, res) {
     if(!req.body.username) res.send('No username provided');
 
     const settings = Object.assign(models.scrape_settings, req.body);
-    settings.scrape_type = 'USER';
+    settings.scrape_type = constants.types.user;
 
     service.scrape(settings).then(data => res.send(data));
 });
@@ -22,7 +23,16 @@ app.post('/posts', function(req,res){
     if(!req.body.username) res.send('No username was provided');
 
     const settings = Object.assign(models.scrape_settings, req.body);
-    settings.scrape_type = 'POSTS';
+    settings.scrape_type = constants.types.posts;
+
+    service.scrape(settings).then(data => res.send(data));
+});
+
+app.post('/posts/random', function(req, res){
+    if(!req.body.username) res.send('No username was provided');
+
+    const settings = Object.assign(models.scrape_settings, req.body);
+    settings.scrape_type = constants.types.posts_random;
 
     service.scrape(settings).then(data => res.send(data));
 });

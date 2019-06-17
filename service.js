@@ -10,10 +10,12 @@ exports.scrape = async function (settings) {
 
     try {
         switch (settings.scrape_type) {
-            case 'USER':
+            case constants.types.user:
                 response = await this.scrape_user(browser, response, settings); break;
-            case 'POSTS':
+            case constants.types.posts:
                 response = await this.scrape_posts(browser, response, settings); break;
+            case constants.types.posts_random:
+                response = await this.scrape_random_post(browser, response, settings); break;
         }
     } catch (error) {
         console.log(error);
@@ -52,16 +54,53 @@ this.scrape_user = async function (browser, response, settings) {
     return response;
 }
 
+this.get_random_index = (length) => {
+    return Math.floor(Math.random() * length);
+};
+
+this.scrape_random_post = async function (browser, response, settings) {
+
+    var media = null;
+
+    const page = await browser.newPage();
+    await page.goto(identifiers.baseUrl + settings.username);
+
+    var post_collection = await this.scrape_post_urls(page, settings.max_posts, settings.continuation_token);
+
+    var indices_tried = []
+    var attempts = 0;
+
+    while (media === null && attempts < 3) {
+        var index = this.get_random_index(post_collection.urls.length);
+        while (indices_tried.includes(index)) index = this.get_random_index(post_collection.urls.length);
+        indices_tried.push(index);
+
+        media = await this.scrape_single_post(browser, settings, post_collection.urls[index]);        
+
+        //If none of the retrieved posts were suitable, retrieve the next set
+        if (indices_tried.length === post_collection.urls.length) {
+            post_collection = await this.scrape_post_urls(page, settings.max_posts, post_collection.continuation_token)
+            indices_tried = [];
+            attempts += 1;
+        }
+    }
+
+    response.meta.code = 200;
+    response.data.push(media);
+
+    return response;
+}
+
+
 this.scrape_posts = async function (browser, response, settings) {
     const page = await browser.newPage();
     await page.goto(identifiers.baseUrl + settings.username);
-    
+
     var collection = [];
-    var post_collection = await this.scrape_post_urls(page, settings.max_posts, settings.continuation_token);    
+    var post_collection = await this.scrape_post_urls(page, settings.max_posts, settings.continuation_token);
 
     for (var i = 0; i < post_collection.urls.length; i++) {
         var p = await this.scrape_single_post(browser, settings, post_collection.urls[i])
-        console.log("Post? : "+ p);
         if (p) collection.push(p);
     }
 
@@ -102,17 +141,18 @@ this.scrape_single_post = async function (browser, settings, post_url) {
 
     if (await page.$(identifiers.post.captionRoot)) {
         var element_children = await page.$$(identifiers.post.captionRoot + " span");
-        for(var i = 0; i < element_children.length; i++){
+        for (var i = 0; i < element_children.length; i++) {
             var element = element_children[i];
-            var element_class = await page.evaluate(element => element.class, element);
-            if (element_class || element_class === "") {
-                media.caption = eval_text(element);
+            var element_class = await page.evaluate(element => element.className, element);
+            //The span that contains the caption is the only child without a class:
+            if (!element_class || element_class === "") {
+                media.caption = await page.evaluate(element => element.textContent, element);
                 media.tags = strip_tags(media.caption);
             }
         }
     }
 
-    media.created_time = eval_date(page, identifiers.post.timestamp);
+    media.created_time = await eval_date(page, identifiers.post.timestamp, null);
 
     return media;
 }
@@ -150,7 +190,7 @@ this.scrape_post_urls = async function (page, max_posts, continuation_token) {
             var current_count = visible_posts.length;
 
             await page.evaluate(() => {
-                window.scrollTo(lastmost);
+                window.scrollBy(0, 1000);
             });
 
             visible_posts = await page.$$(identifiers.profile.postThumb);
@@ -165,7 +205,7 @@ this.scrape_post_urls = async function (page, max_posts, continuation_token) {
                     retrieve = false;
                 }
             }
-        }        
+        }
     }
 
     return { continuation_token, urls };
@@ -191,6 +231,8 @@ function is_valid_continuation(token) {
 function strip_tags(text) {
     var tags = [];
 
+    if (text === undefined) return tags;
+
     if (text.includes('#')) {
         var separate = text.split('#');
         separate = separate.slice(1);
@@ -209,7 +251,7 @@ function strip_srcs(src_set) {
     var separate = src_set.split(',');
     for (var i = 0; i < separate.length; i++) {
         var values = separate[i].split(' ');
-        var dim = parseInt(values[0].replace('w', ''));
+        var dim = parseInt(values[1].replace('w', ''));
 
         srcs.push({
             width: dim,
@@ -251,11 +293,10 @@ async function eval_date(page, identifier, root_element) {
         } else {
             element = await page.$(identifier);
         }
-        
-        var raw_date = await page.evaluate(element => element.datetime, element);
 
-        //TODO: parse raw to utc
-        return raw_date;
+        var raw_date = await page.evaluate(element => element.dateTime, element);
+
+        return new Date(raw_date);
 
     } catch (error) {
         console.log(error);
