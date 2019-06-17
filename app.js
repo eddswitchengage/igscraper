@@ -16,7 +16,7 @@ app.post('/user', function(req, res) {
     const settings = Object.assign(models.scrape_settings, req.body);
     settings.scrape_type = constants.types.user;
 
-    await service.scrape(settings).then(data => res.send(data));
+    service.scrape(settings).then(data => res.send(data));
 });
 
 app.post('/posts', function(req,res){
@@ -25,7 +25,7 @@ app.post('/posts', function(req,res){
     const settings = Object.assign(models.scrape_settings, req.body);
     settings.scrape_type = constants.types.posts;
 
-    await service.scrape(settings).then(data => res.send(data));
+    service.scrape(settings).then(data => res.send(data));
 });
 
 app.post('/posts/random', function(req, res){
@@ -37,7 +37,7 @@ app.post('/posts/random', function(req, res){
 
     settings.scrape_type = constants.types.posts_random;
 
-    await service.scrape(settings).then(data => res.send(data));
+    service.scrape(settings).then(data => res.send(data));
 });
 
 
