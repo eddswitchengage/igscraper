@@ -11,7 +11,7 @@ const port = 3000;
 app.get('/', (req, res) => res.send('API Ok'));
 
 app.post('/user', function(req, res) {
-    if(!req.body.username) res.send('No username provided');
+    if(!req.body.username) res.send('No username provided');    
 
     const settings = Object.assign(models.scrape_settings, req.body);
     settings.scrape_type = constants.types.user;
@@ -30,6 +30,8 @@ app.post('/posts', function(req,res){
 
 app.post('/posts/random', function(req, res){
     if(!req.body.username) res.send('No username was provided');
+
+    console.log("Providede body:  " + req.body);
 
     const settings = Object.assign(models.scrape_settings, req.body);
     settings.scrape_type = constants.types.posts_random;
