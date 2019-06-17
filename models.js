@@ -50,6 +50,13 @@ exports.media = {
     users_in_photo: []
 }
 
+this.comment ={
+    content: "",
+    username: "",
+    profile_picture: "",
+    timestamp: new Date()
+}
+
 this.src = {
     width: 0,
     height: 0,

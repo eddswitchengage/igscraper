@@ -16,7 +16,15 @@ exports.scrape = async function (settings) {
                 response = await this.scrape_posts(browser, response, settings); break;
             case constants.types.posts_random:
                 response = await this.scrape_random_post(browser, response, settings); break;
+            case constants.types.posts_single:
+                response.data.push(await this.scrape_single_post(browser, settings, settings.post_url));
+                response.meta.code = 200;
+                break;
+            case constants.types.comments:
+                response = await this.scrape_post_comments(browser, response, settings); break;
         }
+
+        response.meta.code = 200;
     } catch (error) {
         console.log(error);
         response.meta.code = 500;
@@ -48,7 +56,6 @@ this.scrape_user = async function (browser, response, settings) {
     }
 
     //Success, set status code to 200 and push the retrieved user to the response
-    response.meta.code = 200;
     response.data.push(user);
 
     return response;
@@ -75,7 +82,7 @@ this.scrape_random_post = async function (browser, response, settings) {
         while (indices_tried.includes(index)) index = this.get_random_index(post_collection.urls.length);
         indices_tried.push(index);
 
-        media = await this.scrape_single_post(browser, settings, post_collection.urls[index]);        
+        media = await this.scrape_single_post(browser, settings, post_collection.urls[index]);
 
         //If none of the retrieved posts were suitable, retrieve the next set
         if (indices_tried.length === post_collection.urls.length) {
@@ -85,9 +92,7 @@ this.scrape_random_post = async function (browser, response, settings) {
         }
     }
 
-    response.meta.code = 200;
     response.data.push(media);
-
     return response;
 }
 
@@ -104,7 +109,6 @@ this.scrape_posts = async function (browser, response, settings) {
         if (p) collection.push(p);
     }
 
-    response.meta.code = 200;
     response.continuation_token = post_collection.continuation_token;
     response.data.push(collection);
 
@@ -211,6 +215,52 @@ this.scrape_post_urls = async function (page, max_posts, continuation_token) {
     return { continuation_token, urls };
 }
 
+this.scrape_post_comments = async function (browser, response, settings) {
+    const page = await browser.newPage();
+    await page.goto(settings.post_url);
+
+    var comments = [];
+
+    var parsed = [];
+    var has_caption = await try_find_element(page, identifiers.post.captionRoot);
+    if (has_caption.success === true) parsed.push(0);
+
+    var retrieve = true;
+
+    while (retrieve) {
+        var retd = await page.$$(identifiers.post.comment);
+        for (var i = 0; i < retd.length; i++) {
+            if (!parsed.includes(i)) {
+                var comment = {};
+
+                comment.content = await eval_text(page, identifiers.comment.content, i);
+                comment.username = await eval_text(page, identifiers.comment.username, i-1);
+                comment.profile_picture = await eval_url(page, identifiers.comment.displayPicture, i+2);
+                comment.timestamp = await eval_date(page, identifiers.comment.timestamp, i);
+
+                comments.push(comment);
+                parsed.push(i);
+            }
+            if (comments.length === settings.max_comments) {
+                retrieve = false;
+                break;
+            }
+        }
+
+        if (retrieve) {
+            var load_more = await try_find_element(page, identifiers.comment.loadMore);
+            if (load_more.success === true) {
+                await page.click(identifiers.comment.loadMore);
+            } else {
+                retrieve = false;
+            }
+        }
+    }
+
+    for (var i = 0; i < comments.length; i++) response.data.push(comments[i]);
+    return response;
+}
+
 /* Helpers */
 async function init_browser() {
     return await puppeteer.launch({
@@ -284,12 +334,24 @@ function parse_number(text) {
     }
 }
 
-async function eval_date(page, identifier, root_element) {
+async function try_find_element(page, identifier) {
+    try {
+        var element = await page.$(identifier);
+        if (element) return { "element": element, "success": true };
+    } catch (error) {
+        console.log(error);
+    }
+
+    return { "element": null, "success": false };
+}
+
+async function eval_date(page, identifier, index) {
     try {
         let element;
 
-        if (root_element) {
-            element = await page.$(root_element + " " + identifier);
+        if (index) {
+            var elements = await page.$$(identifier);
+            element = elements[index];
         } else {
             element = await page.$(identifier);
         }
@@ -297,10 +359,11 @@ async function eval_date(page, identifier, root_element) {
         var raw_date = await page.evaluate(element => element.dateTime, element);
 
         return new Date(raw_date);
-
     } catch (error) {
         console.log(error);
     }
+
+    return new Date();
 }
 
 async function eval_number(page, identifier, eval_title) {
@@ -311,22 +374,44 @@ async function eval_number(page, identifier, eval_title) {
     } catch (error) {
         console.log(error);
     }
+
+    return 0;
 }
 
-async function eval_text(page, identifier) {
+async function eval_text(page, identifier, index) {
     try {
-        const element = await page.$(identifier);
+        let element;
+
+        if (index) {
+            var elements = await page.$$(identifier);
+            element = elements[index];
+        } else {
+            element = await page.$(identifier);
+        }
+
         return await page.evaluate(element => element.textContent, element);
     } catch (error) {
         console.log(error);
     }
+
+    return "";
 }
 
-async function eval_url(page, identifier) {
+async function eval_url(page, identifier, index) {
     try {
-        const element = await page.$(identifier);
+        let element;
+
+        if (index) {
+            var elements = await page.$$(identifier);
+            element = elements[index];
+        } else {
+            element = await page.$(identifier);
+        }
+
         return await page.evaluate(element => element.src, element);
     } catch (error) {
         console.log(error);
     }
+
+    return "";
 }

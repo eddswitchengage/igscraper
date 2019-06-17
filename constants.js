@@ -39,4 +39,5 @@ exports.types = {
     posts: 'POSTS',
     posts_random: 'POSTS_RANDOM',
     posts_single: 'POSTS_SINGLE',
+    comments: 'COMMENTS',
 }
