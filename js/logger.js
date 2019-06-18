@@ -27,10 +27,14 @@ exports.log_exception = function (exception) {
 }
 
 this.update_file = function (data) {
-    fs.writeFile(log_file, JSON.stringify(data), err => {
-        if (err) {
-            console.log('Something went wrong trying to save log');
-            return;
-        }
-    });
+    try {
+        fs.writeFile(log_file, JSON.stringify(data), err => {
+            if (err) {
+                console.log('Something went wrong trying to save log');
+                return;
+            }
+        });   
+    } catch (error) {
+        //console.log(error);
+    }    
 }
