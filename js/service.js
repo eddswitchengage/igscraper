@@ -357,7 +357,7 @@ async function eval_date(page, identifier, index) {
 
         var raw_date = await page.evaluate(element => element.dateTime, element);
 
-        return new Date(raw_date);
+        return new Date(raw_date).toUTCString();
     } catch (error) {
         //logger.log_exception(error);
     }
