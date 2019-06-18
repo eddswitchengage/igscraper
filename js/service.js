@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer');
-const constants = require('./constants');
-const models = require('./models');
+const constants = require('../data/constants');
+const models = require('../data/models');
 const logger = require('./logger');
 
 const identifiers = constants.identifiers;

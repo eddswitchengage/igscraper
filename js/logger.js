@@ -1,5 +1,5 @@
 const fs = require('fs');
-const log_file = './logs.json';
+const log_file = './data/logs.json';
 
 exports.read_logs = function () {
     try {
