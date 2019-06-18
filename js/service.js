@@ -230,7 +230,7 @@ this.scrape_post_comments = async function (browser, response, settings) {
                 var comment = {};
 
                 comment.content = await eval_text(page, identifiers.comment.content, i, ':not([class])');
-                var username_index = has_caption.success ? i-1 : i;
+                var username_index = has_caption.success ? i-1 : i; //If theres a caption, we need to offset the index of the username
                 comment.username = await eval_text(page, identifiers.comment.username, username_index);
                 comment.profile_picture = await eval_url(page, identifiers.comment.displayPicture, i + 2);
                 comment.timestamp = await eval_date(page, identifiers.comment.timestamp, i);
