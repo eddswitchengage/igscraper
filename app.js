@@ -14,7 +14,7 @@ app.get('/', (req, res) => res.send('API Ok'));
 //Retrieve a user's profile
 app.post('/user', function (req, res) {
     if (!req.body.username) return res.send('No username provided');
-
+    
     const settings = Object.assign(models.scrape_settings, req.body);
     settings.scrape_type = constants.types.user;
 
@@ -43,7 +43,7 @@ app.post('/post', function (req, res) {
     settings.scrape_type = constants.types.posts_single;
 
     service.scrape(settings).then(data => {
-        res.send(data)
+        return res.send(data)
     });
 });
 

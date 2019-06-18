@@ -58,12 +58,9 @@ this.scrape_user = async function (browser, response, settings) {
     user.bio = await eval_text(page, identifiers.profile.bio);
     user.profile_picture = await eval_url(page, identifiers.profile.displayPicture);
 
-    var stat_elements = await page.$$(identifiers.profile.stats);
-    if (stat_elements.length >= 3) {
-        user.post_count = await eval_number(page, stat_elements[0], null);
-        user.followers = await eval_number(page, stat_elements[1], true);
-        user.following = await eval_number(page, stat_elements[2], null);
-    }
+    user.post_count = await eval_number(page, identifiers.profile.stats, null, 0);
+    user.followers = await eval_number(page, identifiers.profile.stats, true, 1);
+    user.following = await eval_number(page, identifiers.profile.stats, null, 2);
 
     //Success, set status code to 200 and push the retrieved user to the response
     response.data.push(user);
@@ -368,9 +365,17 @@ async function eval_date(page, identifier, index) {
     return new Date();
 }
 
-async function eval_number(page, identifier, eval_title) {
+async function eval_number(page, identifier, eval_title, index) {
     try {
-        const element = await page.$(identifier);
+        let element;
+
+        if (index) {
+            var elements = await page.$$(identifier);
+            element = elements[index];
+        } else {
+            element = await page.$(identifier);
+        }
+
         if (eval_title) return parse_number(await page.evaluate(element => element.title, element));
         else return parse_number(await page.evaluate(element => element.textContent, element));
     } catch (error) {

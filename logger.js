@@ -19,7 +19,6 @@ exports.log_request = function(request){
 
 exports.log_exception = function(exception){
     const logs = this.read_logs();
-    console.log("LOGGING EXCEPTION: " + exception);
     logs.exceptions.push(exception);
     this.update_file(logs);
 }
