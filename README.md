@@ -11,7 +11,7 @@ _This app is for educational purposes only, use at your own discretion_
 `npm i`
 
 _If you're on Ubuntu, run the following bash script (it installs dependencies required by chrome driver)_  
-`.scripts/dldeps.sh`
+`/scripts/dldeps.sh`
 
 `node app.js` to run the app
 
