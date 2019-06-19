@@ -153,56 +153,39 @@ this.scrape_single_post = async function (browser, settings, post_url) {
     return media;
 }
 
+//Code borrowed heavily from : https://intoli.com/blog/scrape-infinite-scroll/
 this.scrape_post_urls = async function (page, max_posts, continuation_token) {
-    var retrieve = true;
-    var lastmost = null;
-    var visible_posts = await page.$$(identifiers.profile.postThumb);
+    if (!parseInt(continuation_token)) continuation_token = 0;
+
+    //console.log(continuation_token);
+
+    //Evaluate how many posts this user has
+    const post_count = await eval_number(page, identifiers.profile.stats, null, 0);
 
     var urls = [];
-
-    while (retrieve) {
-        var reached_continuation = !is_valid_continuation(continuation_token);
-
-        for (var i = 0; i < visible_posts.length; i++) {
-            var element = visible_posts[i];
-            var url = await page.evaluate(element => element.href, element);
-
-            if (reached_continuation) {
-                urls.push(url);
-                lastmost = element;
-            }
-
-            if (urls.length == max_posts) {
-                retrieve = false;
-                break;
-            }
-
-            if (!reached_continuation && url == continuation_token) reached_continuation = true;
+    try {
+        //Extract all hrefs required from page (page is lazy loaded, hence the scrolling and waiting)
+        while (urls.length < post_count) {
+            urls.push(...await page.evaluate(extractHrefs));
+            urls = removeDups(urls); //Remove duplicates
+            
+            previousHeight = await page.evaluate('document.body.scrollHeight');
+            await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
+            await page.waitForFunction(`document.body.scrollHeight > ${previousHeight}`);
+            await page.waitFor(1000);            
         }
-
-        continuation_token = urls[urls.length - 1];
-
-        if (retrieve) {
-            var current_count = visible_posts.length;
-
-            await page.evaluate(() => {
-                window.scrollBy(0, 1000);
-            });
-
-            visible_posts = await page.$$(identifiers.profile.postThumb);
-
-            if (current_count == visible_posts.length) {
-                //If reached the bottom of the page (there are no more images to load) and the most recently retrieved post is the final post
-                var last_visible = visible_posts[visible_posts.length - 1];
-                var last_visible_url = await page.evaluate(last_visible => last_visible.href, last_visible);
-
-                if (continuation_token == last_visible_url) {
-                    continuation_token = "";
-                    retrieve = false;
-                }
-            }
-        }
+    } catch (error) {//When an error is caught here, it's probably because there's no more page to scroll
     }
+
+    console.log(urls.length);
+
+    //Slice urls to appropriate elements
+    var max_index = continuation_token + max_posts;
+    urls = urls.slice(continuation_token, max_index);
+
+    //Update token
+    if (max_index >= post_count) continuation_token = "";
+    else continuation_token = max_index;
 
     return { continuation_token, urls };
 }
@@ -226,7 +209,7 @@ this.scrape_post_comments = async function (browser, response, settings) {
                 var comment = {};
 
                 comment.content = await eval_text(page, identifiers.comment.content, i, ':not([class])');
-                var username_index = has_caption.success ? i-1 : i; //If theres a caption, we need to offset the index of the username
+                var username_index = has_caption.success ? i - 1 : i; //If theres a caption, we need to offset the index of the username
                 comment.username = await eval_text(page, identifiers.comment.username, username_index);
                 comment.profile_picture = await eval_url(page, identifiers.comment.displayPicture, i + 2);
                 comment.timestamp = await eval_date(page, identifiers.comment.timestamp, i);
@@ -258,8 +241,27 @@ this.scrape_post_comments = async function (browser, response, settings) {
 async function init_browser() {
     return await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--proxy-server="direct://"',
+            '--proxy-bypass-list=*'
+        ],
     });
+}
+
+function removeDups(items) {
+    let unique = {};
+    items.forEach(function (i) {
+        if (!unique[i]) {
+            unique[i] = true;
+        }
+    });
+    return Object.keys(unique);
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function is_valid_continuation(token) {
@@ -291,6 +293,16 @@ function strip_tags(text) {
 
     return tags;
 }
+
+function extractHrefs() {
+    const extractedElements = document.querySelectorAll('div.v1Nh3 a');
+    const items = [];
+    for (let element of extractedElements) {
+        items.push(element.href);
+    }
+    return items;
+}
+
 
 function strip_srcs(src_set) {
     var srcs = [];

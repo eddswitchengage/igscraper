@@ -33,8 +33,15 @@ this.update_file = function (data) {
                 console.log('Something went wrong trying to save log');
                 return;
             }
-        });   
+        });
     } catch (error) {
         //console.log(error);
-    }    
+    }
+}
+
+//Try to find the file, if it doesn't exist, create it
+const exists = fs.existsSync(log_file);
+if (!exists) {
+    const logs = {};
+    this.update_file(logs);
 }
