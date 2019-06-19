@@ -30,7 +30,8 @@ exports.identifiers = {
         likes: 'div.C4VMK div.Igw0E div._7UhW9 a',
         timestamp: 'time.FH9sR.Nzb55',
         displayPicture: 'img',
-        loadMore: 'span.glyphsSpriteCircle_add__outline__24__grey_9 u-__7'
+        loadMore: 'span.glyphsSpriteCircle_add__outline__24__grey_9 u-__7',
+        verified: 'Szr5J  coreSpriteVerifiedBadgeSmall'
     }
 }
 

@@ -1,12 +1,19 @@
 const puppeteer = require('puppeteer');
-const constants = require('./constants');
-const models = require('./models');
+const constants = require('../data/constants');
+const models = require('../data/models');
+const logger = require('./logger');
 
 const identifiers = constants.identifiers;
 
 exports.scrape = async function (settings) {
+    const log = {
+        "settings": settings,
+        "exception": "",
+        "response": undefined
+    };
+
     const browser = await init_browser();
-    var response = models.ig_response;
+    var response = JSON.parse(JSON.stringify(models.ig_response));
 
     try {
         switch (settings.scrape_type) {
@@ -26,17 +33,20 @@ exports.scrape = async function (settings) {
 
         response.meta.code = 200;
     } catch (error) {
+        log.exception = error;
         console.log(error);
         response.meta.code = 500;
     } finally {
         browser.close();
     }
+    log.response = response;
+    logger.log_request(log);
 
     return response;
 }
 
 this.scrape_user = async function (browser, response, settings) {
-    var user = models.user;
+    var user = JSON.parse(JSON.stringify(models.user));
     user.username = settings.username;
 
     const page = await browser.newPage();
@@ -48,12 +58,9 @@ this.scrape_user = async function (browser, response, settings) {
     user.bio = await eval_text(page, identifiers.profile.bio);
     user.profile_picture = await eval_url(page, identifiers.profile.displayPicture);
 
-    var stat_elements = await page.$$(identifiers.profile.stats);
-    if (stat_elements.length >= 3) {
-        user.post_count = await eval_number(page, stat_elements[0], null);
-        user.followers = await eval_number(page, stat_elements[1], true);
-        user.following = await eval_number(page, stat_elements[2], null);
-    }
+    user.post_count = await eval_number(page, identifiers.profile.stats, null, 0);
+    user.followers = await eval_number(page, identifiers.profile.stats, true, 1);
+    user.following = await eval_number(page, identifiers.profile.stats, null, 2);
 
     //Success, set status code to 200 and push the retrieved user to the response
     response.data.push(user);
@@ -119,7 +126,7 @@ this.scrape_single_post = async function (browser, settings, post_url) {
     const page = await browser.newPage();
     await page.goto(post_url);
 
-    var media = models.media;
+    var media = JSON.parse(JSON.stringify(models.media));
     media.link = post_url;
 
     var video_element = await page.$(identifiers.post.videoControl);
@@ -143,19 +150,8 @@ this.scrape_single_post = async function (browser, settings, post_url) {
         media.images = strip_srcs(srcset);
     }
 
-    if (await page.$(identifiers.post.captionRoot)) {
-        var element_children = await page.$$(identifiers.post.captionRoot + " span");
-        for (var i = 0; i < element_children.length; i++) {
-            var element = element_children[i];
-            var element_class = await page.evaluate(element => element.className, element);
-            //The span that contains the caption is the only child without a class:
-            if (!element_class || element_class === "") {
-                media.caption = await page.evaluate(element => element.textContent, element);
-                media.tags = strip_tags(media.caption);
-            }
-        }
-    }
-
+    media.caption = await eval_text(page, identifiers.post.captionRoot + ' span', null, ':not([class])');
+    media.tags = strip_tags(media.caption);
     media.created_time = await eval_date(page, identifiers.post.timestamp, null);
 
     return media;
@@ -233,9 +229,10 @@ this.scrape_post_comments = async function (browser, response, settings) {
             if (!parsed.includes(i)) {
                 var comment = {};
 
-                comment.content = await eval_text(page, identifiers.comment.content, i);
-                comment.username = await eval_text(page, identifiers.comment.username, i-1);
-                comment.profile_picture = await eval_url(page, identifiers.comment.displayPicture, i+2);
+                comment.content = await eval_text(page, identifiers.comment.content, i, ':not([class])');
+                var username_index = has_caption.success ? i-1 : i; //If theres a caption, we need to offset the index of the username
+                comment.username = await eval_text(page, identifiers.comment.username, username_index);
+                comment.profile_picture = await eval_url(page, identifiers.comment.displayPicture, i + 2);
                 comment.timestamp = await eval_date(page, identifiers.comment.timestamp, i);
 
                 comments.push(comment);
@@ -280,17 +277,20 @@ function is_valid_continuation(token) {
 
 function strip_tags(text) {
     var tags = [];
-
     if (text === undefined) return tags;
 
-    if (text.includes('#')) {
-        var separate = text.split('#');
-        separate = separate.slice(1);
+    try {
+        if (text.includes('#')) {
+            var separate = text.split('#');
+            separate = separate.slice(1);
 
-        for (var i = 0; i < separate.length; i++) {
-            var tag = separate[i].split(' ')[0];
-            if (tag && tag !== "") tags.add(tag);
+            for (var i = 0; i < separate.length; i++) {
+                var tag = separate[i].split(' ')[0];
+                if (tag && tag !== "") tags.push(tag);
+            }
         }
+    } catch (error) {
+        //logger.log_exception(error);
     }
 
     return tags;
@@ -339,7 +339,7 @@ async function try_find_element(page, identifier) {
         var element = await page.$(identifier);
         if (element) return { "element": element, "success": true };
     } catch (error) {
-        console.log(error);
+        //logger.log_exception(error);
     }
 
     return { "element": null, "success": false };
@@ -358,27 +358,15 @@ async function eval_date(page, identifier, index) {
 
         var raw_date = await page.evaluate(element => element.dateTime, element);
 
-        return new Date(raw_date);
+        return new Date(raw_date).toUTCString();
     } catch (error) {
-        console.log(error);
+        //logger.log_exception(error);
     }
 
     return new Date();
 }
 
-async function eval_number(page, identifier, eval_title) {
-    try {
-        const element = await page.$(identifier);
-        if (eval_title) return parse_number(await page.evaluate(element => element.title, element));
-        else return parse_number(await page.evaluate(element => element.textContent, element));
-    } catch (error) {
-        console.log(error);
-    }
-
-    return 0;
-}
-
-async function eval_text(page, identifier, index) {
+async function eval_number(page, identifier, eval_title, index) {
     try {
         let element;
 
@@ -389,9 +377,31 @@ async function eval_text(page, identifier, index) {
             element = await page.$(identifier);
         }
 
+        if (eval_title) return parse_number(await page.evaluate(element => element.title, element));
+        else return parse_number(await page.evaluate(element => element.textContent, element));
+    } catch (error) {
+        //logger.log_exception(error);
+    }
+
+    return 0;
+}
+
+async function eval_text(page, identifier, index, deselector) {
+    try {
+        let element;
+
+        if (!deselector) deselector = "";
+
+        if (index) {
+            var elements = await page.$$(identifier + deselector);
+            element = elements[index];
+        } else {
+            element = await page.$(identifier + deselector);
+        }
+
         return await page.evaluate(element => element.textContent, element);
     } catch (error) {
-        console.log(error);
+        //logger.log_exception(error);
     }
 
     return "";
@@ -410,7 +420,7 @@ async function eval_url(page, identifier, index) {
 
         return await page.evaluate(element => element.src, element);
     } catch (error) {
-        console.log(error);
+        //logger.log_exception(error);
     }
 
     return "";

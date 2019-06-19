@@ -54,7 +54,7 @@ this.comment ={
     content: "",
     username: "",
     profile_picture: "",
-    timestamp: new Date()
+    timestamp: new Date().toUTCString()
 }
 
 this.src = {
