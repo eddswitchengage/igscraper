@@ -108,16 +108,12 @@ this.scrape_posts = async function (browser, response, settings) {
     const page = await browser.newPage();
     await page.goto(identifiers.baseUrl + settings.username);
 
-    var collection = [];
     var post_collection = await this.scrape_post_urls(page, settings.max_posts, settings.continuation_token);
-
     for (var i = 0; i < post_collection.urls.length; i++) {
         var p = await this.scrape_single_post(browser, settings, post_collection.urls[i])
-        if (p) collection.push(p);
+        if (p) response.data.push(p);
     }
-
     response.continuation_token = post_collection.continuation_token;
-    response.data.push(collection);
 
     return response;
 }
