@@ -108,11 +108,20 @@ this.scrape_posts = async function (browser, response, settings) {
     const page = await browser.newPage();
     await page.goto(identifiers.baseUrl + settings.username);
 
+    console.time('scrape-urls');
     var post_collection = await this.scrape_post_urls(page, settings.max_posts, settings.continuation_token);
-    for (var i = 0; i < post_collection.urls.length; i++) {
-        var p = await this.scrape_single_post(browser, settings, post_collection.urls[i])
-        if (p) response.data.push(p);
+    console.timeEnd('scrape-urls');
+
+    var promises = [];
+
+    for(var i = 0; i< post_collection.urls.length; i++){
+        promises.push(this.scrape_single_post(browser, settings, post_collection.urls[i]));
     }
+
+    console.time('scrape-posts');
+    response.data = await Promise.all(promises); //Scrape all posts
+    console.timeEnd('scrape-posts');
+
     response.continuation_token = post_collection.continuation_token;
 
     return response;
@@ -120,12 +129,13 @@ this.scrape_posts = async function (browser, response, settings) {
 
 this.scrape_single_post = async function (browser, settings, post_url) {
     const page = await browser.newPage();
-    await page.goto(post_url);
+    await page.goto(post_url);    
 
-    var media = JSON.parse(JSON.stringify(models.media));
+    var media = JSON.parse(JSON.stringify(models.media)); //Esentially means: var media = new models.media
     media.link = post_url;
 
     var video_element = await page.$(identifiers.post.videoControl);
+
     if (video_element) {
         if (settings.retrieve_video) {
             media.type = "video";
@@ -157,27 +167,24 @@ this.scrape_single_post = async function (browser, settings, post_url) {
 this.scrape_post_urls = async function (page, max_posts, continuation_token) {
     if (!parseInt(continuation_token)) continuation_token = 0;
 
-    //console.log(continuation_token);
-
     //Evaluate how many posts this user has
     const post_count = await eval_number(page, identifiers.profile.stats, null, 0);
 
     var urls = [];
+
     try {
         //Extract all hrefs required from page (page is lazy loaded, hence the scrolling and waiting)
-        while (urls.length < post_count) {
+        while (urls.length < continuation_token + max_posts && urls.length < post_count) {
             urls.push(...await page.evaluate(extractHrefs));
-            urls = removeDups(urls); //Remove duplicates
-            
-            previousHeight = await page.evaluate('document.body.scrollHeight');
-            await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
-            await page.waitForFunction(`document.body.scrollHeight > ${previousHeight}`);
-            await page.waitFor(1000);            
-        }
-    } catch (error) {//When an error is caught here, it's probably because there's no more page to scroll
-    }
+            urls = removeDups(urls);
 
-    console.log(urls.length);
+            previous_height = await page.evaluate('document.body.scrollHeight');
+            await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
+            await page.waitForFunction(`document.body.scrollHeight > ${previous_height}`);
+        }
+    } catch (error) {
+        //When an error is caught here, it's because there's no more page to scroll        
+    }
 
     //Slice urls to appropriate elements
     var max_index = continuation_token + max_posts;
