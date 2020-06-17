@@ -3,6 +3,7 @@
 Express web app used to scrape Instagram content.  
 _This app is for educational purposes only, use at your own discretion_
 
+See the changelog here: [CHANGELOG](CHANGELOG.md)
 
 # Installation 
  
