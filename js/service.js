@@ -54,23 +54,27 @@ this.scrape_user = async function (browser, response, settings) {
 
     await page.waitForSelector(identifiers.profile.fullname);
 
-    user.full_name = await eval_text(page, identifiers.profile.fullname);
-    user.bio = await eval_text(page, identifiers.profile.bio);
-    user.profile_picture = await eval_url(page, identifiers.profile.displayPicture);
+    const profile_data = await Promise.all([
+        eval_text(page, identifiers.profile.fullname),
+        eval_text(page, identifiers.profile.bio),
+        eval_url(page, identifiers.profile.displayPicture),
+        eval_number(page, identifiers.profile.stats, null, 0), //Post count
+        eval_number(page, identifiers.profile.stats, true, 1), //Follower count
+        eval_number(page, identifiers.profile.stats, null, 2)  //Following count
+    ]);
 
-    user.post_count = await eval_number(page, identifiers.profile.stats, null, 0);
-    user.followers = await eval_number(page, identifiers.profile.stats, true, 1);
-    user.following = await eval_number(page, identifiers.profile.stats, null, 2);
+    user.full_name = profile_data[0];
+    user.bio = profile_data[1];
+    user.profile_picture = profile_data[2];
+    user.post_count = profile_data[3];
+    user.followers = profile_data[4];
+    user.following = profile_data[5];
 
     //Success, set status code to 200 and push the retrieved user to the response
     response.data.push(user);
 
     return response;
 }
-
-this.get_random_index = (length) => {
-    return Math.floor(Math.random() * length);
-};
 
 this.scrape_random_post = async function (browser, response, settings) {
 
@@ -85,8 +89,8 @@ this.scrape_random_post = async function (browser, response, settings) {
     var attempts = 0;
 
     while (media === null && attempts < 3) {
-        var index = this.get_random_index(post_collection.urls.length);
-        while (indices_tried.includes(index)) index = this.get_random_index(post_collection.urls.length);
+        var index = get_random_index(post_collection.urls.length);
+        while (indices_tried.includes(index)) index = get_random_index(post_collection.urls.length);
         indices_tried.push(index);
 
         media = await this.scrape_single_post(browser, settings, post_collection.urls[index]);
@@ -114,7 +118,7 @@ this.scrape_posts = async function (browser, response, settings) {
 
     var promises = [];
 
-    for(var i = 0; i< post_collection.urls.length; i++){
+    for (var i = 0; i < post_collection.urls.length; i++) {
         promises.push(this.scrape_single_post(browser, settings, post_collection.urls[i]));
     }
 
@@ -129,12 +133,12 @@ this.scrape_posts = async function (browser, response, settings) {
 
 this.scrape_single_post = async function (browser, settings, post_url) {
     const page = await browser.newPage();
-    await page.goto(post_url);    
+    await page.goto(post_url);
 
-    var media = JSON.parse(JSON.stringify(models.media)); //Esentially means: var media = new models.media
+    var media = JSON.parse(JSON.stringify(models.media)); //Essentially means: var media = new models.media
     media.link = post_url;
 
-    var video_element = await page.$(identifiers.post.videoControl);
+    var video_element = await get_video_element(page);
 
     if (video_element) {
         if (settings.retrieve_video) {
@@ -143,7 +147,6 @@ this.scrape_single_post = async function (browser, settings, post_url) {
 
             var thumb = await eval_url(page, identifiers.post.videoThumb);
             media.images.standard_resolution = { src: thumb, width: 1080, height: 1080 };
-
         } else {
             return null;
         }
@@ -175,8 +178,8 @@ this.scrape_post_urls = async function (page, max_posts, continuation_token) {
     try {
         //Extract all hrefs required from page (page is lazy loaded, hence the scrolling and waiting)
         while (urls.length < continuation_token + max_posts && urls.length < post_count) {
-            urls.push(...await page.evaluate(extractHrefs));
-            urls = removeDups(urls);
+            urls.push(...await page.evaluate(extract_hrefs));
+            urls = remove_dups(urls);
 
             previous_height = await page.evaluate('document.body.scrollHeight');
             await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
@@ -257,7 +260,11 @@ async function init_browser() {
     });
 }
 
-function removeDups(items) {
+function get_random_index(length) {
+    return Math.floor(Math.random() * length);
+};
+
+function remove_dups(items) {
     let unique = {};
     items.forEach(function (i) {
         if (!unique[i]) {
@@ -267,17 +274,24 @@ function removeDups(items) {
     return Object.keys(unique);
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+async function get_video_element(page) {
+    //Check for new video control element first
+    var video_element = await try_find_element(page, identifiers.post.videoControl);
+    //Check for legacy video control if we couldn't find control element with new identifier
+    if (!video_element.success) video_element = await try_find_element(page, identifiers.post.videoControl_legacy);
+
+    return video_element.element;
 }
 
-function is_valid_continuation(token) {
-    if (token && token !== "") {
-        if (token.substring(0, identifiers.postUrl.length) == identifiers.postUrl) {
-            return true;
-        }
+async function try_find_element(page, identifier) {
+    try {
+        var element = await page.$(identifier);
+        if (element) return { "element": element, "success": true };
+    } catch (error) {
+        //logger.log_exception(error);
     }
-    return false;
+
+    return { "element": null, "success": false };
 }
 
 function strip_tags(text) {
@@ -301,7 +315,7 @@ function strip_tags(text) {
     return tags;
 }
 
-function extractHrefs() {
+function extract_hrefs() {
     const extractedElements = document.querySelectorAll('div.v1Nh3 a');
     const items = [];
     for (let element of extractedElements) {
@@ -347,17 +361,6 @@ function parse_number(text) {
         text = text.replace(' like', '');
         return parseFloat(text);
     }
-}
-
-async function try_find_element(page, identifier) {
-    try {
-        var element = await page.$(identifier);
-        if (element) return { "element": element, "success": true };
-    } catch (error) {
-        //logger.log_exception(error);
-    }
-
-    return { "element": null, "success": false };
 }
 
 async function eval_date(page, identifier, index) {
